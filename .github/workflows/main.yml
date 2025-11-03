@@ -1,9 +1,10 @@
-name: Build
+name: Build & Deploy with Nessus + Packer
+
 on:
   push:
     branches:
       - main
-      
+
 env:
   CI: false
 
@@ -33,9 +34,53 @@ jobs:
           name: production-files
           path: ./build
 
+  security_scan:
+    name: Nessus Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Nessus CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl unzip
+          curl -L -o nessuscli.zip https://www.tenable.com/downloads/api/v1/public/pages/nessus/downloads/<VERSION_ID>/download?i_agree_to_tenable_license_agreement=true
+          unzip nessuscli.zip -d nessuscli
+          chmod +x nessuscli/nessuscli
+        continue-on-error: true  # Optional: if Nessus install fails, don't stop pipeline
+
+      - name: Run Nessus scan
+        run: |
+          echo "Running Nessus scan (placeholder)..."
+          # Replace this with your actual Nessus scan command or API call
+          # Example: nessuscli agent scan --policy my-policy.nasl
+
+  packer_build:
+    name: Build Image with Packer
+    runs-on: ubuntu-latest
+    needs: security_scan
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v2
+        with:
+          version: latest
+
+      - name: Validate Packer template
+        run: packer validate ./packer-template.json
+
+      - name: Build Image with Packer
+        run: packer build ./packer-template.json
+
   deploy:
     name: Deploy
-    needs: build
+    needs: packer_build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
